@@ -17,4 +17,3 @@ For example you can add a shortcut to example.com by typing "*https://example.co
 Holding down the shortcut will give you the option to delete it, rename it, or move it to your hidden apps. If you click the info button you can choose which browser to open the website shortcut in. From now on this website shortcut will be opened in the browser you selected.
 
 Website shortcuts can also be set as a home app shortcut, clock app shortcut, calendar app shortcut, and can be opened using swipe gestures.
-

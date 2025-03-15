@@ -14,14 +14,18 @@ import android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import app.olauncher.data.Constants
 import app.olauncher.data.Prefs
 import app.olauncher.databinding.ActivityMainBinding
+import app.olauncher.helper.getColorFromAttr
 import app.olauncher.helper.hasBeenDays
 import app.olauncher.helper.hasBeenHours
+import app.olauncher.helper.hasBeenMinutes
 import app.olauncher.helper.isDarkThemeOn
+import app.olauncher.helper.isDaySince
 import app.olauncher.helper.isDefaultLauncher
 import app.olauncher.helper.isEinkDisplay
 import app.olauncher.helper.isOlauncherDefault
@@ -33,6 +37,9 @@ import app.olauncher.helper.setPlainWallpaper
 import app.olauncher.helper.shareApp
 import app.olauncher.helper.showLauncherSelector
 import app.olauncher.helper.showToast
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 class MainActivity : AppCompatActivity() {
@@ -41,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navController: NavController
     private lateinit var viewModel: MainViewModel
     private lateinit var binding: ActivityMainBinding
+    private var timerJob: Job? = null
 
     override fun onBackPressed() {
         if (navController.currentDestination?.id != R.id.mainFragment)
@@ -68,6 +76,7 @@ class MainActivity : AppCompatActivity() {
             viewModel.firstOpen(true)
             prefs.firstOpen = false
             prefs.firstOpenTime = System.currentTimeMillis()
+            viewModel.resetLauncherLiveData.call()
         }
 
         initClickListeners()
@@ -76,6 +85,11 @@ class MainActivity : AppCompatActivity() {
         setupOrientation()
 
         window.addFlags(FLAG_LAYOUT_NO_LIMITS)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        checkTheme()
     }
 
     override fun onStop() {
@@ -129,9 +143,21 @@ class MainActivity : AppCompatActivity() {
                         binding.messageLayout.visibility = View.GONE
                     }
                 }
+
+                Constants.Dialog.WALLPAPER -> {
+                    prefs.wallpaperMsgShown = true
+                    prefs.userState = Constants.UserState.REVIEW
+                    showMessageDialog(getString(R.string.did_you_know), getString(R.string.wallpaper_message), getString(R.string.enable)) {
+                        binding.messageLayout.visibility = View.GONE
+                        prefs.dailyWallpaper = true
+                        viewModel.setWallpaperWorker()
+                        showToast(getString(R.string.your_wallpaper_will_update_shortly))
+                    }
+                }
+
                 Constants.Dialog.REVIEW -> {
                     prefs.userState = Constants.UserState.RATE
-                    showMessageDialog(getString(R.string.did_you_know), getString(R.string.review_message), getString(R.string.leave_a_review)) {
+                    showMessageDialog(getString(R.string.hey), getString(R.string.review_message), getString(R.string.leave_a_review)) {
                         binding.messageLayout.visibility = View.GONE
                         prefs.rateClicked = true
                         showToast("😇❤️")
@@ -151,7 +177,7 @@ class MainActivity : AppCompatActivity() {
 
                 Constants.Dialog.SHARE -> {
                     prefs.shareShownTime = System.currentTimeMillis()
-                    showMessageDialog(getString(R.string.app_name), getString(R.string.share_message), getString(R.string.share_now)) {
+                    showMessageDialog(getString(R.string.hey), getString(R.string.share_message), getString(R.string.share_now)) {
                         binding.messageLayout.visibility = View.GONE
                         showToast("😊❤️")
                         shareApp()
@@ -171,9 +197,14 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 Constants.Dialog.DIGITAL_WELLBEING -> {
-                    showMessageDialog("Hi", getString(R.string.digital_wellbeing_message), getString(R.string.learn_more)) {
-                        binding.messageLayout.visibility = View.GONE
-                        openUrl(Constants.URL_DIGITAL_WELLBEING_LEARN_MORE)
+                    showMessageDialog(getString(R.string.screen_time), getString(R.string.app_usage_message), getString(R.string.permission)) {
+                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    }
+                }
+
+                Constants.Dialog.PRO_MESSAGE -> {
+                    showMessageDialog(getString(R.string.hey), getString(R.string.pro_message), getString(R.string.olauncher_pro)) {
+                        openUrl(Constants.URL_OLAUNCHER_PRO)
                     }
                 }
             }
@@ -194,14 +225,21 @@ class MainActivity : AppCompatActivity() {
 
         when (prefs.userState) {
             Constants.UserState.START -> {
-                if (prefs.firstOpenTime.hasBeenHours(1))
+                if (prefs.firstOpenTime.hasBeenMinutes(10))
+                    prefs.userState = Constants.UserState.WALLPAPER
+            }
+
+            Constants.UserState.WALLPAPER -> {
+                if (prefs.wallpaperMsgShown || prefs.dailyWallpaper)
                     prefs.userState = Constants.UserState.REVIEW
+                else if (isOlauncherDefault(this))
+                    viewModel.showDialog.postValue(Constants.Dialog.WALLPAPER)
             }
 
             Constants.UserState.REVIEW -> {
                 if (prefs.rateClicked)
                     prefs.userState = Constants.UserState.SHARE
-                else if (isOlauncherDefault(this))
+                else if (isOlauncherDefault(this) && prefs.firstOpenTime.hasBeenHours(1))
                     viewModel.showDialog.postValue(Constants.Dialog.REVIEW)
             }
 
@@ -209,15 +247,15 @@ class MainActivity : AppCompatActivity() {
                 if (prefs.rateClicked)
                     prefs.userState = Constants.UserState.SHARE
                 else if (isOlauncherDefault(this)
-                    && prefs.firstOpenTime.hasBeenDays(3)
-                    && Calendar.getInstance().get(Calendar.HOUR_OF_DAY) >= 15
+                    && prefs.firstOpenTime.isDaySince() >= 7
+                    && Calendar.getInstance().get(Calendar.HOUR_OF_DAY) >= 16
                 ) viewModel.showDialog.postValue(Constants.Dialog.RATE)
             }
 
             Constants.UserState.SHARE -> {
                 if (isOlauncherDefault(this) && prefs.firstOpenTime.hasBeenDays(14)
-                    && prefs.shareShownTime.hasBeenDays(45)
-                    && Calendar.getInstance().get(Calendar.HOUR_OF_DAY) >= 15
+                    && prefs.shareShownTime.isDaySince() >= 70
+                    && Calendar.getInstance().get(Calendar.HOUR_OF_DAY) >= 16
                 ) viewModel.showDialog.postValue(Constants.Dialog.SHARE)
             }
         }
@@ -247,6 +285,16 @@ class MainActivity : AppCompatActivity() {
         if (resetFailed) {
             val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
             startActivity(intent)
+        }
+    }
+
+    private fun checkTheme() {
+        timerJob?.cancel()
+        timerJob = lifecycleScope.launch {
+            delay(200)
+            if ((prefs.appTheme == AppCompatDelegate.MODE_NIGHT_YES && getColorFromAttr(R.attr.primaryColor) != getColor(R.color.white))
+                || (prefs.appTheme == AppCompatDelegate.MODE_NIGHT_NO && getColorFromAttr(R.attr.primaryColor) != getColor(R.color.black))
+            ) recreate()
         }
     }
 

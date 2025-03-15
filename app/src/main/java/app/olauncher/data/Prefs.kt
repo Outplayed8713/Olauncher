@@ -27,17 +27,19 @@ class Prefs(context: Context) {
     private val DATE_TIME_VISIBILITY = "DATE_TIME_VISIBILITY"
     private val SWIPE_LEFT_ENABLED = "SWIPE_LEFT_ENABLED"
     private val SWIPE_RIGHT_ENABLED = "SWIPE_RIGHT_ENABLED"
-    private val SCREEN_TIMEOUT = "SCREEN_TIMEOUT"
     private val HIDDEN_APPS = "HIDDEN_APPS"
     private val HIDDEN_APPS_UPDATED = "HIDDEN_APPS_UPDATED"
     private val SHOW_HINT_COUNTER = "SHOW_HINT_COUNTER"
     private val APP_THEME = "APP_THEME"
     private val ABOUT_CLICKED = "ABOUT_CLICKED"
     private val RATE_CLICKED = "RATE_CLICKED"
+    private val WALLPAPER_MSG_SHOWN = "WALLPAPER_MSG_SHOWN"
     private val SHARE_SHOWN_TIME = "SHARE_SHOWN_TIME"
     private val SWIPE_DOWN_ACTION = "SWIPE_DOWN_ACTION"
     private val TEXT_SIZE_SCALE = "TEXT_SIZE_SCALE"
-    private val HIDE_DIGITAL_WELLBEING = "HIDE_DIGITAL_WELLBEING"
+    private val PRO_MESSAGE_SHOWN = "PRO_MESSAGE_SHOWN"
+    private val HIDE_SET_DEFAULT_LAUNCHER = "HIDE_SET_DEFAULT_LAUNCHER"
+    private val SCREEN_TIME_LAST_UPDATED = "SCREEN_TIME_LAST_UPDATED"
 
     private val APP_NAME_1 = "APP_NAME_1"
     private val APP_NAME_2 = "APP_NAME_2"
@@ -219,13 +221,17 @@ class Prefs(context: Context) {
         get() = prefs.getFloat(TEXT_SIZE_SCALE, 1.0f)
         set(value) = prefs.edit().putFloat(TEXT_SIZE_SCALE, value).apply()
 
-    var hideDigitalWellbeing: Boolean
-        get() = prefs.getBoolean(HIDE_DIGITAL_WELLBEING, false)
-        set(value) = prefs.edit().putBoolean(HIDE_DIGITAL_WELLBEING, value).apply()
+    var proMessageShown: Boolean
+        get() = prefs.getBoolean(PRO_MESSAGE_SHOWN, false)
+        set(value) = prefs.edit().putBoolean(PRO_MESSAGE_SHOWN, value).apply()
 
-    var screenTimeout: Int
-        get() = prefs.getInt(SCREEN_TIMEOUT, 30000) // Default: 30 seconds
-        set(value) = prefs.edit().putInt(SCREEN_TIMEOUT, value).apply()
+    var hideSetDefaultLauncher: Boolean
+        get() = prefs.getBoolean(HIDE_SET_DEFAULT_LAUNCHER, false)
+        set(value) = prefs.edit().putBoolean(HIDE_SET_DEFAULT_LAUNCHER, value).apply()
+
+    var screenTimeLastUpdated: Long
+        get() = prefs.getLong(SCREEN_TIME_LAST_UPDATED, 0L)
+        set(value) = prefs.edit().putLong(SCREEN_TIME_LAST_UPDATED, value).apply()
 
     var hiddenApps: MutableSet<String>
         get() = prefs.getStringSet(HIDDEN_APPS, mutableSetOf()) as MutableSet<String>
@@ -246,6 +252,10 @@ class Prefs(context: Context) {
     var rateClicked: Boolean
         get() = prefs.getBoolean(RATE_CLICKED, false)
         set(value) = prefs.edit().putBoolean(RATE_CLICKED, value).apply()
+
+    var wallpaperMsgShown: Boolean
+        get() = prefs.getBoolean(WALLPAPER_MSG_SHOWN, false)
+        set(value) = prefs.edit().putBoolean(WALLPAPER_MSG_SHOWN, value).apply()
 
     var shareShownTime: Long
         get() = prefs.getLong(SHARE_SHOWN_TIME, 0L)
